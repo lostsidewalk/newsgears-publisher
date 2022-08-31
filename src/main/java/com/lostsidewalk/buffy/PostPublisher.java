@@ -9,10 +9,12 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyList;
 import static org.apache.commons.collections4.CollectionUtils.isNotEmpty;
 import static org.apache.commons.collections4.CollectionUtils.size;
 
@@ -37,12 +39,18 @@ public class PostPublisher {
         doPublish(null);
     }
 
-    public void doPublish(String tag) {
+    public void doPublish(String feedIdent) {
         log.info("Post publisher process starting at {}", FastDateFormat.getDateTimeInstance(FastDateFormat.MEDIUM, FastDateFormat.MEDIUM).format(new Date()));
-        List<StagingPost> pubPending = stagingPostDao.getPubPending(tag);
+        List<StagingPost> pubPending = stagingPostDao.getPubPending(feedIdent);
         if (isNotEmpty(pubPending)) {
-            publishers.forEach(publisher -> publisher.doPublish(pubPending));
+            List<StagingPost> pubCurrent = stagingPostDao.findPublishedByFeed(feedIdent);
+            List<StagingPost> toPublish = new ArrayList<>(pubCurrent.size() + pubPending.size());
+            toPublish.addAll(pubCurrent);
+            toPublish.addAll(pubPending);
+            publishers.forEach(publisher -> publisher.doPublish(toPublish));
             pubPending.forEach(p -> this.stagingPostDao.markPubComplete(p.getId()));
+        } else {
+            publishers.forEach(publisher -> publisher.doPublish(emptyList()));
         }
         log.info("Post publisher processed {} articles at {}", size(pubPending), Instant.now());
     }
