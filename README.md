@@ -60,7 +60,7 @@ FeedGears is an RSS aggregator
 
 The cloud-hosted version, www.feedgears.com, tracks thousands of feeds daily on behalf of our users. We import tens of thousands or articles, and organize and present them to people around the world to read, search, filter, etc. in a highly customizable and accessible way. Since FeedGears is entirely free, you can host your own instance using pre-built containers, using the instructions located here.
 
-This repository contains the publisher.  The importer is a back-end component that runs on demand to produce RSS/ATOM/JSON feeds from staging posts that are marked as 'starred'.    
+This repository contains the publisher.  The publisher is a back-end component that runs on demand to produce feeds from staging posts that are marked as 'starred'.  The publisher delegates the task of producing artifacts of specific formats, such as RSS, ATOM, and JSON, to packages providing classes that implement the Publisher interface.
 
 For more information about FeedGears, see the parent project repository at: https://www.github.com/lostsidewalk/newsgears-app.
 
