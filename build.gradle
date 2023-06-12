@@ -8,7 +8,7 @@ apply plugin: 'java-library'
 apply plugin: 'signing'
 
 group = 'com.lostsidewalk.newsgears'
-version = '0.5.1'
+version = '0.5.2'
 
 java {
     toolchain {
@@ -25,13 +25,13 @@ repositories {
 }
 
 dependencies {
-    api 'com.lostsidewalk.newsgears:newsgears-data:0.5.1'
+    api 'com.lostsidewalk.newsgears:newsgears-data:0.5.2'
 
     // SLF4J
     implementation 'org.slf4j:slf4j-api:2.0.5'
 
     // spring-context
-    implementation 'org.springframework:spring-context:6.0.6'
+    implementation 'org.springframework:spring-context:6.0.9'
     // commons-collections4
     implementation 'org.apache.commons:commons-collections4:4.4'
     // commons-lang
