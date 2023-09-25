@@ -1,12 +1,12 @@
 package com.lostsidewalk.buffy;
 
 import com.lostsidewalk.buffy.model.RenderedFeedDao;
+import com.lostsidewalk.buffy.post.StagingPost;
+import com.lostsidewalk.buffy.post.StagingPostDao;
 import com.lostsidewalk.buffy.publisher.FeedPreview;
 import com.lostsidewalk.buffy.publisher.Publisher;
 import com.lostsidewalk.buffy.publisher.Publisher.PubFormat;
 import com.lostsidewalk.buffy.publisher.Publisher.PubResult;
-import com.lostsidewalk.buffy.post.StagingPost;
-import com.lostsidewalk.buffy.post.StagingPostDao;
 import com.lostsidewalk.buffy.queue.QueueDefinition;
 import com.lostsidewalk.buffy.queue.QueueDefinitionDao;
 import lombok.extern.slf4j.Slf4j;
@@ -14,19 +14,20 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.PostConstruct;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import static java.time.Instant.now;
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
+import static java.util.Collections.*;
 import static java.util.stream.Collectors.toList;
 import static org.apache.commons.collections4.CollectionUtils.size;
 import static org.apache.commons.lang3.time.FastDateFormat.MEDIUM;
 import static org.apache.commons.lang3.time.FastDateFormat.getDateTimeInstance;
 
 
+/**
+ * The PostPublisher class is responsible for publishing and unpublishing posts from queues.
+ * It coordinates the publishing process by invoking registered publishers and manages post statuses.
+ */
 @Slf4j
 @Component
 public class PostPublisher {
@@ -43,17 +44,29 @@ public class PostPublisher {
     @Autowired
     RenderedFeedDao renderedFeedDao;
 
+    /**
+     * Initializes the PostPublisher component after construction and logs the number of publishers available.
+     */
     @PostConstruct
-    public void postConstruct() {
+    protected void postConstruct() {
         log.info("Post publisher constructed, publisherCt={}", size(publishers));
     }
 
+    /**
+     * Publishes a feed for a given user and queue, updating the post statuses accordingly.
+     *
+     * @param username The username of the user.
+     * @param queueId  The ID of the queue to publish.
+     * @return A map containing publication results for each publisher.
+     * @throws DataAccessException   If there is a data access issue.
+     * @throws DataUpdateException   If there is an issue updating data.
+     */
     @SuppressWarnings("unused")
-    public List<PubResult> publishFeed(String username, Long queueId) throws DataAccessException, DataUpdateException {
+    public Map<String, PubResult> publishFeed(String username, Long queueId) throws DataAccessException, DataUpdateException {
         QueueDefinition queueDefinition = this.queueDefinitionDao.findByQueueId(username, queueId);
         if (queueDefinition == null) {
             log.error("Unable to locate queue definition with Id={}", queueId);
-            return emptyList();
+            return emptyMap();
         }
         // fetch all pub-pending posts..
         List<StagingPost> pubPending = stagingPostDao.getPubPending(username, queueId);
@@ -67,9 +80,8 @@ public class PostPublisher {
         log.info("Post publisher processing {} posts at {}", size(toPublish), getDateTimeInstance(MEDIUM, MEDIUM).format(new Date()));
         // invoke doPublish on ea. publisher and collect the results in a list
         Date pubDate = new Date();
-        List<PubResult> publicationResults = publishers.stream()
-                .map(publisher -> doPublish(publisher, queueDefinition, toPublish, pubDate))
-                .collect(toList());
+        Map<String, PubResult> publicationResults = new HashMap<>();
+        publishers.forEach(p -> publicationResults.putAll(doPublish(p, queueDefinition, toPublish, pubDate)));
         // mark ea. post as pub complete (clear the status and set is_published to true)
         for (StagingPost n : pubPending) {
             this.stagingPostDao.markPubComplete(username, n.getId());
@@ -87,6 +99,14 @@ public class PostPublisher {
         return publicationResults;
     }
 
+    /**
+     * Unpublishes a previously published feed for a given user and queue.
+     *
+     * @param username The username of the user.
+     * @param queueId  The ID of the queue to unpublish.
+     * @throws DataAccessException If there is a data access issue.
+     * @throws DataUpdateException If there is an issue updating data.
+     */
     @SuppressWarnings("unused")
     public void unpublishFeed(String username, Long queueId) throws DataAccessException, DataUpdateException {
         QueueDefinition queueDefinition = this.queueDefinitionDao.findByQueueId(username, queueId);
@@ -121,14 +141,23 @@ public class PostPublisher {
     //
     //
 
-    private PubResult doPublish(Publisher publisher, QueueDefinition queueDefinition, List<StagingPost> toPublish, Date pubDate) {
+    private Map<String, PubResult> doPublish(Publisher publisher, QueueDefinition queueDefinition, List<StagingPost> toPublish, Date pubDate) {
         try {
             return publisher.publishFeed(queueDefinition, toPublish, pubDate);
         } catch (Exception e) { // publisher *should* handle their own exceptions
-            return PubResult.from(publisher.getPublisherId(), singletonList(e), pubDate);
+            return Map.of(publisher.getPublisherId(), PubResult.from(null, singletonList(e), pubDate));
         }
     }
 
+    /**
+     * Generates feed previews for posts in a queue in the specified format.
+     *
+     * @param username The username of the user.
+     * @param queueId  The ID of the queue to generate previews for.
+     * @param format   The format of the feed previews.
+     * @return A list of feed preview artifacts.
+     * @throws DataAccessException If there is a data access issue.
+     */
     @SuppressWarnings("unused")
     public List<FeedPreview> doPreview(String username, Long queueId, PubFormat format) throws DataAccessException {
         QueueDefinition queueDefinition = this.queueDefinitionDao.findByQueueId(username, queueId);
