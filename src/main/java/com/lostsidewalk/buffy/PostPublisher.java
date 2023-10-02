@@ -45,6 +45,13 @@ public class PostPublisher {
     RenderedFeedDao renderedFeedDao;
 
     /**
+     * Default constructor; initializes the object.
+     */
+    PostPublisher() {
+        super();
+    }
+
+    /**
      * Initializes the PostPublisher component after construction and logs the number of publishers available.
      */
     @PostConstruct
