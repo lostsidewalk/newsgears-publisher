@@ -52,6 +52,9 @@ public class PostPublisher {
     @Autowired
     private RenderedFeedDao renderedFeedDao;
 
+    @Autowired
+    private LockDao lockDao;
+
     /**
      * Default constructor; initializes the object.
      */
@@ -102,8 +105,8 @@ public class PostPublisher {
         // (0.5) acquire a lock on the rendered feeds for this queue
         String lockKey = queueDefinition.getTransportIdent();
         String lockValue = randomUUID().toString();
-        if (!renderedFeedDao.acquireLockWithRetry(lockKey, lockValue)) {
-            log.error("Unable to acquire a lock on the rendered feeds for queue Id={}", queueId);
+        if (!lockDao.acquireLockWithRetry(lockKey, lockValue)) {
+            log.error("Unable to acquire a lock on the rendered feeds for queue Id={}, lockKey={}, lockValue={}", queueId, lockKey, lockValue);
             return emptyMap();
         }
 
@@ -154,7 +157,9 @@ public class PostPublisher {
         publishers.forEach(p -> publicationResults.putAll(doPublish(p, queueDefinition, new HashSet<>(toPublish), pubDate)));
 
         // (6.5) release the lock on the rendered feeds for this queue
-        renderedFeedDao.releaseLock(lockKey, lockValue);
+        if (!lockDao.releaseLock(lockKey, lockValue)) {
+            log.warn("Unable to release lock, lockKey={}, lockValue={}", lockKey, lockValue);
+        }
 
         // (7) mark ea. published post as pub complete
         markPubComplete(username, toPublish);
@@ -201,8 +206,8 @@ public class PostPublisher {
         // acquire lock
         String lockKey = queueDefinition.getTransportIdent();
         String lockValue = randomUUID().toString();
-        if (!renderedFeedDao.acquireLockWithRetry(lockKey, lockValue)) {
-            log.error("Unable to acquire a lock on the rendered feeds for queue Id={}", queueId);
+        if (!lockDao.acquireLockWithRetry(lockKey, lockValue)) {
+            log.error("Unable to acquire a lock on the rendered feeds for queue Id={}, lockKey={}, lockValue={}", queueId, lockKey, lockValue);
             return;
         }
         // fetch all pub-pending posts..
@@ -219,7 +224,9 @@ public class PostPublisher {
         // de-publish the feed
         renderedFeedDao.deleteFeedAtTransportIdent(queueDefinition.getTransportIdent());
         // release lock
-        renderedFeedDao.releaseLock(lockKey, lockValue);
+        if (!lockDao.releaseLock(lockKey, lockValue)) {
+            log.warn("Unable to release lock, lockKey={}, lockValue={}", lockKey, lockValue);
+        }
         // clear the pub complete flag from ea. post
         for (StagingPost stagingPost : toUnpublish) {
             stagingPostDao.clearPubComplete(username, stagingPost.getId());
@@ -299,12 +306,13 @@ public class PostPublisher {
     }
 
     @Override
-    public final String toString() {
+    public String toString() {
         return "PostPublisher{" +
                 "queueDefinitionDao=" + queueDefinitionDao +
                 ", stagingPostDao=" + stagingPostDao +
                 ", publishers=" + publishers +
                 ", renderedFeedDao=" + renderedFeedDao +
+                ", lockDao=" + lockDao +
                 '}';
     }
 }
